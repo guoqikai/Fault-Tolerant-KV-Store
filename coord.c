@@ -25,9 +25,8 @@ static uint16_t servers_port = 0;
 // Server configuration file name
 static char cfg_file_name[PATH_MAX] = "";
 
-// Timeout for detecting server failures;
-// you might want to adjust this default value.
-static const int default_server_timeout = 1;
+// Timeout for detecting server failures, in sec;
+static const int default_server_timeout = 2;
 static int server_timeout = 0;
 
 // Log file name
@@ -124,7 +123,7 @@ static server_node *server_nodes = NULL;
 static bool read_config_file() {
     FILE *cfg_file = fopen(cfg_file_name, "r");
     if (cfg_file == NULL) {
-        log_perror("Invalid configuration file");
+        log_error("Invalid configuration file");
         return false;
     }
 
@@ -741,7 +740,7 @@ static bool run_coordinator_loop() {
             time(&cur_time);
             if (difftime(cur_time, node->last_heartbeat) > server_timeout) {
 				if (dead_node) {
-					log_perror("More one server dead during recovery process, shutting down..\n");
+					log_error("More than one server dead during recovery process, shutting down..\n");
 					return false;
 				}
 				dead_node = node;
