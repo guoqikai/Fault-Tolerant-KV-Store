@@ -17,8 +17,8 @@
 #include "hash.h"
 #include "util.h"
 
-// Program arguments
-#define HEARTBEAT_INTERVAL 0.3
+// heartbeat every sec
+#define HEARTBEAT_INTERVAL 1
 
 // Host name and port number of the metadata server
 static char coord_host_name[HOST_NAME_MAX] = "";
@@ -384,7 +384,7 @@ static void process_client_message(int fd)
     if ((key_srv_id != server_id) &&
         ((key_srv_id != primary_sid) || ((request->type != OP_VERIFY) && (get_server_state(0) != PRIMARY_RECOVERY))))
     {
-        log_error("sid %d: Invalid client key %s sid %d\n", server_id, key_to_str(request->key), key_srv_id);
+        log_error("server %d: Invalid client key %s sid %d\n", server_id, key_to_str(request->key), key_srv_id);
         // This can happen if client is using old config during recovery
         response->status = INVALID_REQUEST;
         send_msg(fd, response, sizeof(*response) + value_sz);
@@ -446,7 +446,7 @@ static void process_client_message(int fd)
 
         if (value_copy == NULL)
         {
-            log_error("sid %d: Out of memory\n", server_id);
+            log_error("server %d: Out of memory\n", server_id);
             response->status = OUT_OF_SPACE;
             break;
         }
@@ -460,7 +460,7 @@ static void process_client_message(int fd)
         // Put the <key, value> pair into the hash table
         if (!hash_put(target_hash, request->key, value_copy, value_size, &old_value, &old_value_sz))
         {
-            log_error("sid %d: Out of memory\n", server_id);
+            log_error("server %d: Out of memory\n", server_id);
             free(value_copy);
             response->status = OUT_OF_SPACE;
             hash_unlock(target_hash, request->key);
@@ -494,7 +494,7 @@ static void process_client_message(int fd)
     }
 
     default:
-        log_error("sid %d: Invalid client operation type\n", server_id);
+        log_error("server %d: Invalid client operation type\n", server_id);
         return;
     }
 
@@ -547,7 +547,7 @@ static bool process_server_message(int fd)
     if (value_copy == NULL)
     {
         log_perror("malloc\n");
-        log_error("sid %d: Out of memory\n", server_id);
+        log_error("server %d: Out of memory\n", server_id);
         response.status = OUT_OF_SPACE;
         goto send_;
     }
@@ -561,7 +561,7 @@ static bool process_server_message(int fd)
     // Put the <key, value> pair into the hash table
     if (!hash_put(target_hash, request->key, value_copy, value_size, &old_value, &old_value_sz))
     {
-        log_error("sid %d: Out of memory\n", server_id);
+        log_error("server %d: Out of memory\n", server_id);
         free(value_copy);
         response.status = OUT_OF_SPACE;
     }
@@ -601,7 +601,7 @@ static void sent_entry_hash_f(const char key[KEY_SIZE], void *value, size_t valu
         !recv_msg(*server_fd, &response, sizeof(response), MSG_OPERATION_RESP) ||
         (response.status != SUCCESS))
     {
-        log_error("sid %d: fail to send recovery data\n", server_id);
+        log_error("server %d: fail to send recovery data\n", server_id);
         recovery_fail = true;
     }
 }
@@ -686,7 +686,7 @@ static bool process_coordinator_message(int fd, bool *shutdown_requested)
         if ((secondary_fd = connect_to_server(request->host_name,
                                               request->port)) < 0)
         {
-            log_error("sid %d Set Secondary failed\n", server_id);
+            log_error("server %d Set Secondary failed\n", server_id);
             response.status = CTRLREQ_FAILURE;
         }
         else
@@ -813,7 +813,7 @@ static void *run_server_listener_loop(void *args)
             }
         }
 
-        // Check for any messages from the primary server
+        // Check for any messages from upstream servers(primary server/servers sending recovery data).
         for (int i = 0; i < MAX_SERVER_SESSIONS; i++)
         {
             if ((server_fd_table[i] != -1) && FD_ISSET(server_fd_table[i], &rset))
@@ -821,7 +821,7 @@ static void *run_server_listener_loop(void *args)
                 if (!process_server_message(server_fd_table[i]))
                 {
                     // Received an invalid message, close the connection
-                    log_error("sid %d: Closing server connection\n", server_id);
+                    log_error("server %d: Closing connection to upstream server %d\n", server_id, primary_sid);
                     FD_CLR(server_fd_table[i], &allset);
                     close_safe(&(server_fd_table[i]));
                 }
@@ -887,7 +887,7 @@ static bool run_server_loop()
                                              &shutdown_requested))
             {
                 // Received an invalid message, close the connection
-                log_error("sid %d: Closing coordinator connection\n", server_id);
+                log_error("server %d: Closing coordinator connection\n", server_id);
                 FD_CLR(coord_fd_in, &allset);
                 close_safe(&(coord_fd_in));
             }

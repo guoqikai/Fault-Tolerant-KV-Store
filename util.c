@@ -485,10 +485,9 @@ void log_msg(const void *msg, bool received)
 		break;
 	}
 	
-	if (!strncmp(subtype, "HEARTBEAT", MAX_MSG_LEN))
-		log_write("%s message: type = %s, length = %d%s%s\n",
-		  	received ? "Received" : "Sending",
-	          msg_type_str[hdr->type], hdr->length, subtype, contents);
+	log_write("%s message: type = %s, length = %d%s%s\n",
+		received ? "Received" : "Sending",
+	      msg_type_str[hdr->type], hdr->length, subtype, contents);
 }
 
 // Write a message to a TCP socket.
