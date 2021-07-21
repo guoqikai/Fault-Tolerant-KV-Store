@@ -1,1 +1,1 @@
-# fault-tolerant-kv-store
+# Fault Tolerant Distributed Key Value Store Service 
